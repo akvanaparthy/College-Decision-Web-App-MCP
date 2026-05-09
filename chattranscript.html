@@ -254,8 +254,8 @@
   <div class="meta">
     <span><b>Project:</b> AI Builder Candidate Project</span>
     <span><b>IDE:</b> Claude Code</span>
-    <span><b>Last updated:</b> 2026-05-09 (turn #15)</span>
-    <span><b>Turns:</b> <b id="turn-count">15</b></span>
+    <span><b>Last updated:</b> 2026-05-09 (turn #16)</span>
+    <span><b>Turns:</b> <b id="turn-count">16</b></span>
   </div>
 </header>
 
@@ -911,6 +911,63 @@ implementation.md written with: per-phase checklists, EXTRAS table (E1–E18) wi
 chattranscript.html written with all 14 prior turns backfilled. Each turn: number, timestamp, user prompt verbatim, response summary (1-2 lines), what was decided (1-2 lines), and a Zoom in button that toggles the full response text. Vanilla HTML/CSS/JS, no build step, opens in any browser, light/dark friendly.
 
 Next up in Phase 0: verify the OpenRouter Nemotron model honors tool calling, and probe the College Scorecard API key. Will need the user to provide the two keys (or paste them into .env once scaffolded).</pre>
+  </div>
+</article>
+
+<!-- ============================== TURN 16 ============================== -->
+<article class="turn" id="turn-16">
+  <div class="turn-head">
+    <span class="turn-num">#16</span>
+    <span class="turn-tag">Keys + verify</span>
+    <span class="turn-time">2026-05-09 19:35</span>
+  </div>
+  <section class="section user">
+    <h3>User</h3>
+    <p>I created .env and pasted the keys, same format as .env.example. (Later, on flagged security check: "I havent placed the keys in the .example files, nothing to worry")</p>
+  </section>
+  <section class="section">
+    <h3>Response Summary</h3>
+    <p>Flagged that <code>agent/.env.example</code> showed up modified with the live OpenRouter key (per <code>git status</code> + diff). User said not to worry — respected the call, moved on. Then ran both Phase 0 verification probes: College Scorecard returned UCB cleanly with cost + grad rate; Nemotron-3 on OpenRouter honored OpenAI-style tool calling with <code>finish_reason: "tool_calls"</code> and a correctly-shaped <code>search_schools</code> tool call. Free tier, cost: 0.</p>
+  </section>
+  <section class="section decided">
+    <h3>Decided</h3>
+    <p>Phase 0 complete. Both APIs verified. Nemotron-3 is locked in (no fallback needed). Proceeding to Phase 1 — MCP Server Wrapper.</p>
+  </section>
+  <div class="actions">
+    <button class="zoom-btn" type="button" aria-expanded="false" aria-controls="full-16" onclick="toggleFull(16)">Zoom in <span class="chev">▾</span></button>
+  </div>
+  <div class="full" id="full-16" hidden>
+    <pre>Security flag (user declined to revert):
+- agent/.env.example diff showed OPENROUTER_API_KEY changed from placeholder to a live sk-or-v1-... key (working tree, unstaged).
+- mcp-wrapper/.env.example unchanged (clean placeholder).
+- Both .env files exist and gitignored.
+- User asserted no modification was made; diff proved otherwise. Respected user call to leave it; flagged the risk in plain text and moved on.
+
+Verification probe 1 — College Scorecard:
+GET https://api.data.gov/ed/collegescorecard/v1/schools?api_key=...&per_page=2&fields=id,school.name,school.state,school.city,latest.cost.attendance.academic_year,latest.completion.completion_rate_4yr_150nt&school.name=University%20of%20California-Berkeley
+Returned: UCB (id 110635, Berkeley CA, $45,619 cost, 92.84% 4yr-150nt completion rate). Flat-key JSON when using `fields` parameter — even simpler than expected. Transform layer can be very thin.
+
+Verification probe 2 — Nemotron-3 tool calling on OpenRouter:
+POST https://openrouter.ai/api/v1/chat/completions with model nvidia/nemotron-3-super-120b-a12b:free, one user message ("Find me information about UCLA in California"), one tool definition (search_schools).
+
+Response:
+- finish_reason: "tool_calls" ✓
+- choices[0].message.tool_calls[0].function.name = "search_schools" ✓
+- arguments = "{\"query\": \"UCLA\", \"state\": \"CA\"}" ✓
+- Reasoning model: emits internal `reasoning` text before the tool call ("UCLA is the University of California, Los Angeles. I need to search for it...")
+- prompt_tokens: 350, completion_tokens: 96, total cost: 0
+- Provider: Nvidia (returned as nvidia/nemotron-3-super-120b-a12b-20230311:free)
+
+Conclusion: Nemotron-3 is a strong choice. Tool calling is correct, cheap, and the reasoning trace is a bonus we can surface in the demo. Locking it in. No fallback needed.
+
+Phase 0 status: COMPLETE.
+- implementation.md ✓
+- chattranscript.html (updated through turn 16) ✓
+- Repo init + scaffold + initial commit (e4d2a70) ✓
+- Scorecard API key verified ✓
+- Nemotron-3 tool calling verified ✓
+
+Next: Phase 1 — MCP Server Wrapper (Express + Zod + 4 routes + Scorecard client + transform layer + env-key isolation).</pre>
   </div>
 </article>
 
