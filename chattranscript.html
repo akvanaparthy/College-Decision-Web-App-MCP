@@ -254,8 +254,8 @@
   <div class="meta">
     <span><b>Project:</b> AI Builder Candidate Project</span>
     <span><b>IDE:</b> Claude Code</span>
-    <span><b>Last updated:</b> 2026-05-09 (turn #16)</span>
-    <span><b>Turns:</b> <b id="turn-count">16</b></span>
+    <span><b>Last updated:</b> 2026-05-09 (turn #17)</span>
+    <span><b>Turns:</b> <b id="turn-count">17</b></span>
   </div>
 </header>
 
@@ -968,6 +968,136 @@ Phase 0 status: COMPLETE.
 - Nemotron-3 tool calling verified ✓
 
 Next: Phase 1 — MCP Server Wrapper (Express + Zod + 4 routes + Scorecard client + transform layer + env-key isolation).</pre>
+  </div>
+</article>
+
+<!-- ============================== TURN 17 ============================== -->
+<article class="turn" id="turn-17">
+  <div class="turn-head">
+    <span class="turn-num">#17</span>
+    <span class="turn-tag">Phases 1–3 build</span>
+    <span class="turn-time">2026-05-09 19:45 → 20:25</span>
+  </div>
+  <section class="section user">
+    <h3>User</h3>
+    <p>(auto-mode continued execution after the previous turn approved the plan)</p>
+  </section>
+  <section class="section">
+    <h3>Response Summary</h3>
+    <p>Built Phases 1, 2, and 3 of the CORE backbone end-to-end. MCP wrapper (Express + Zod + 4 tool routes) → Agent backend (Express + LangChain.js + Nemotron-3 + 4 LangChain tools + system prompt + /chat) → Frontend (Vite + React + Tailwind + custom design system "Editorial Almanac"). Each phase ended with a Code Reviewer agent pass; both reviews returned blockers that were fixed in polish commits before the next phase started. All three canonical demo queries route correctly end-to-end through agent + wrapper, and the frontend is live on :5173 with CORS-locked access to the agent.</p>
+  </section>
+  <section class="section decided">
+    <h3>Decided</h3>
+    <p>Locked the wrapper HTTP contract (4 routes, normalized shapes, total_matching/returned split, ComparisonResult.failures[]). Locked the agent /chat contract (reply, tool_calls[], iterations). Frontend rendering verified at protocol level (HTTP 200 on all modules, CORS, real query through API client) — visual verification deferred to user.</p>
+  </section>
+  <div class="actions">
+    <button class="zoom-btn" type="button" aria-expanded="false" aria-controls="full-17" onclick="toggleFull(17)">Zoom in <span class="chev">▾</span></button>
+  </div>
+  <div class="full" id="full-17" hidden>
+    <pre>PHASE 1 — MCP Server Wrapper (commits f66cf9c + a482b14)
+- Express + TS + Zod + 4 routes (search, profile, compare, filter)
+- ScorecardClient with 8s AbortController timeout, sanitized errors
+  (key in api_key query param never logged or echoed)
+- Transform layer normalizes Scorecard's verbose JSON to flat shapes
+- 7 → 10 unit tests (all pass) covering ownership mapping, null
+  handling, url normalization, sentinel rejection, id-guard throw
+
+Code Reviewer findings (4 blockers + 7 strong + 5 nice-to-have):
+BLOCKERS fixed:
+- compare_schools used Promise.all → swapped to allSettled with
+  per-id failures[] array; 404 only when ALL fail
+- find_by_criteria accepted empty body → added .refine() requiring
+  at least one filter
+- toSummary returned id: NaN on missing id → throws now
+- applied_filters echoed parsed.data → constructed explicitly
+STRONG fixed:
+- All routes now run results through *ResultSchema.parse() before
+  res.json (runtime contract enforcement)
+- Zod errors formatted via formatZodError → clean { fields, message }
+  instead of stringified JSON
+- compare schema rejects duplicate ids
+- All routes wrapped in asyncHandler
+- normalizeUrl rejects "NULL" / "none" / "n/a", mailto:, no-dot
+- SchoolListResult split into total_matching + returned
+
+Plus polish: degree_type filter (certificate/associate/bachelor/graduate)
+on find_by_criteria. Without it, "find me a CA college under $30k with
+80%+ grad rate" returned trade schools and barber colleges. With
+degree_type=bachelor, top results became CalTech, Claremont McKenna,
+Pomona, UCB, UCLA — demo-quality.
+
+PHASE 2 — Agent Backend (commits 28179aa + 55fb93b)
+- Express + LangChain.js + ChatOpenAI w/ OpenRouter base URL +
+  Nemotron-3 free tier
+- 4 LangChain tools (tool() helper) wrapping the wrapper
+- System prompt: routing rules, USC-style disambiguation,
+  degree_type:"bachelor" default, citation rule, no-hallucination
+- Stateless agent runner: replays history → SystemMessage +
+  HumanMessage + AIMessage → tool-call loop (max 6 iterations)
+- /chat returns { reply, tool_calls[], iterations }
+- 5/5 prompt content tests pass
+
+Three canonical queries verified live:
+1. "Find bachelors-degree CA colleges under $30k with ≥80% grad rate"
+   → find_schools_by_criteria → UCB, UCLA, UCSD, UCI, Cal Poly SLO
+   (model self-corrected wrong enum on first try; loop worked)
+2. "Compare UCLA and UC Berkeley side by side"
+   → search_schools×2 → compare_schools([110662, 110635])
+   → narrative comparison with citations
+3. "What is median earnings 10y for UMich-Ann Arbor?"
+   → search_schools → get_school_profile(170976) → "$83,648"
+
+Code Reviewer findings (2 blockers + 5 strong + 5 nice-to-have):
+BLOCKERS fixed:
+- Tool-call id sometimes empty → synthesize stable id via crypto.randomUUID
+  if model omits it, use it for both AIMessage and ToolMessage references
+- compare_schools tool schema didn't enforce uniqueness → added .refine()
+STRONG fixed:
+- sanitizeUpstreamMessage strips URLs and truncates to 200 chars before
+  errors flow into model context or frontend payload
+- Empty-reply fallback string so a no-content + no-tool-calls response
+  never produces a blank assistant bubble
+- CORS now locked to single origin via AGENT_CORS_ORIGIN env (default
+  http://localhost:5173)
+- Error-handler logs only err.name + status, never err.message (some
+  SDK errors embed the request URL containing the api_key)
+- Body limit raised 64kb → 512kb to match the request schema upper bound
+
+PHASE 3 — Frontend (commit 304c2fb)
+- Vite + React 18 + TS + TailwindCSS 3.4
+- Aesthetic: "Editorial Almanac" — print-feel, authoritative, warm
+- Type: Instrument Serif (display) + Geist Sans (body) + Geist Mono
+  (data labels) via Google Fonts + fontshare CDN
+- Color: 60-30-10. Warm parchment background, surface tint, deep ink,
+  forest-green primary, ochre secondary. Opacity hierarchy 100/70/50
+  per the design tips file.
+- Subtle paper-grain texture via CSS-only radial-gradient pattern
+  on body::before — no images, no images.
+- Major Third type scale (1.25×) starting at 16px body, rem units
+- 12-col grid via Tailwind, two-pane lg:5/7 split
+- Components:
+  - Chat: empty-state with three suggested prompts (= the canonical
+    demo queries), pending indicator with active-tool pill, Enter to
+    send / Shift+Enter for newline
+  - ResultsPanel: discriminated-union renderer picking the latest
+    meaningful tool result; collapsible "Tool timeline" details every
+    call with name/args/duration/error
+  - SchoolCard: hero stats grid + secondary stats + official-site link
+  - SchoolList: numbered editorial-style ranking with stat trio per row
+  - ComparisonTable: serif-headed columns, alternating row tints,
+    failures notice band, source footer
+
+Verified:
+- Vite serves all modules HTTP 200
+- End-to-end: "Tell me about UCLA" through frontend's fetch → agent
+  /chat (CORS allowed for localhost:5173) → 1 search tool call →
+  natural-language reply with citation
+- Typecheck clean across all three services
+
+NOT yet verified:
+- Visual rendering in a browser (no headless browser available in
+  this environment). User to verify before recording the demo.
+- Cross-browser, mobile responsiveness, accessibility audit (E17).</pre>
   </div>
 </article>
 
