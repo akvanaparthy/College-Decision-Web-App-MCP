@@ -37,11 +37,35 @@ function asStringOrNull(v: unknown): string | null {
 function normalizeUrl(v: unknown): string | null {
   const s = asStringOrNull(v);
   if (!s) return null;
-  if (s.startsWith('http://') || s.startsWith('https://')) return s;
-  return `https://${s}`;
+  // Reject Scorecard's textual sentinels for missing data.
+  const lower = s.toLowerCase();
+  if (lower === 'null' || lower === 'none' || lower === 'n/a') return null;
+  // Reject anything mailto-shaped or with whitespace.
+  if (/[\s@]/.test(s)) return null;
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    try {
+      new URL(s);
+      return s;
+    } catch {
+      return null;
+    }
+  }
+  // Bare domain must contain at least one dot.
+  if (!s.includes('.')) return null;
+  try {
+    new URL(`https://${s}`);
+    return `https://${s}`;
+  } catch {
+    return null;
+  }
 }
 
 export function toSummary(raw: RawScorecardSchool): SchoolSummary {
+  const id = asIntOrNull(raw['id']);
+  if (id === null) {
+    throw new Error('Scorecard returned a row without a valid integer id');
+  }
+
   const ownershipCode = asNumberOrNull(raw['school.ownership']);
   const ownership: Ownership =
     ownershipCode !== null && ownershipMap[ownershipCode]
@@ -49,7 +73,7 @@ export function toSummary(raw: RawScorecardSchool): SchoolSummary {
       : 'unknown';
 
   return {
-    id: Number(raw['id']),
+    id,
     name: String(raw['school.name'] ?? 'Unknown school'),
     city: asStringOrNull(raw['school.city']),
     state: asStringOrNull(raw['school.state']),

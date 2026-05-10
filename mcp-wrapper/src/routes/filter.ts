@@ -2,10 +2,11 @@ import type { Request, Response } from 'express';
 import { ScorecardClient, sizeBucketToRange } from '../scorecard-client.js';
 import {
   FindByCriteriaInputSchema,
+  SchoolListResultSchema,
   SOURCE_LITERAL,
-  type SchoolListResult,
 } from '../schemas.js';
 import { toSummary } from '../transform.js';
+import { badRequest, upstreamError, asyncHandler } from '../http-helpers.js';
 
 const ownershipCode = {
   public: 1,
@@ -13,13 +14,18 @@ const ownershipCode = {
   private_for_profit: 3,
 } as const;
 
+const degreeTypeCode = {
+  certificate: 1,
+  associate: 2,
+  bachelor: 3,
+  graduate: 4,
+} as const;
+
 export function findByCriteriaHandler(client: ScorecardClient) {
-  return async (req: Request, res: Response): Promise<void> => {
+  return asyncHandler(async (req: Request, res: Response) => {
     const parsed = FindByCriteriaInputSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({
-        error: { code: 'invalid_input', message: parsed.error.message },
-      });
+      badRequest(res, parsed.error);
       return;
     }
     const {
@@ -28,13 +34,13 @@ export function findByCriteriaHandler(client: ScorecardClient) {
       min_grad_rate,
       size,
       ownership,
+      degree_type,
       limit,
     } = parsed.data;
 
     const params: Record<string, string | number> = {
       fields: ScorecardClient.SUMMARY_FIELDS,
       per_page: limit,
-      // Rank by overall completion rate descending so best-outcome schools surface first.
       sort: 'latest.completion.rate_suppressed.overall:desc',
     };
 
@@ -48,23 +54,34 @@ export function findByCriteriaHandler(client: ScorecardClient) {
     }
     if (size) params['latest.student.size__range'] = sizeBucketToRange(size);
     if (ownership) params['school.ownership'] = ownershipCode[ownership];
+    if (degree_type) {
+      params['school.degrees_awarded.predominant'] = degreeTypeCode[degree_type];
+    }
 
     try {
       const raw = await client.query(params);
-      const result: SchoolListResult = {
-        schools: raw.results.map(toSummary),
-        total: raw.metadata.total,
-        applied_filters: parsed.data,
+      const schools = raw.results.map(toSummary);
+
+      // Build applied_filters explicitly — keeps the response contract
+      // independent of the input schema.
+      const applied_filters: Record<string, unknown> = { limit };
+      if (state) applied_filters['state'] = state;
+      if (max_net_price !== undefined) applied_filters['max_net_price'] = max_net_price;
+      if (min_grad_rate !== undefined) applied_filters['min_grad_rate'] = min_grad_rate;
+      if (size) applied_filters['size'] = size;
+      if (ownership) applied_filters['ownership'] = ownership;
+      if (degree_type) applied_filters['degree_type'] = degree_type;
+
+      const result = SchoolListResultSchema.parse({
+        schools,
+        total_matching: raw.metadata.total,
+        returned: schools.length,
+        applied_filters,
         source: SOURCE_LITERAL,
-      };
+      });
       res.json(result);
     } catch (err) {
-      res.status(502).json({
-        error: {
-          code: 'upstream_error',
-          message: err instanceof Error ? err.message : 'Unknown upstream error',
-        },
-      });
+      upstreamError(res, err);
     }
-  };
+  });
 }

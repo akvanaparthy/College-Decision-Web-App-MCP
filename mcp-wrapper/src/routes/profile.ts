@@ -1,15 +1,17 @@
 import type { Request, Response } from 'express';
 import { ScorecardClient } from '../scorecard-client.js';
-import { GetSchoolProfileInputSchema } from '../schemas.js';
+import {
+  GetSchoolProfileInputSchema,
+  SchoolProfileSchema,
+} from '../schemas.js';
 import { toProfile } from '../transform.js';
+import { badRequest, upstreamError, asyncHandler } from '../http-helpers.js';
 
 export function getSchoolProfileHandler(client: ScorecardClient) {
-  return async (req: Request, res: Response): Promise<void> => {
+  return asyncHandler(async (req: Request, res: Response) => {
     const parsed = GetSchoolProfileInputSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({
-        error: { code: 'invalid_input', message: parsed.error.message },
-      });
+      badRequest(res, parsed.error);
       return;
     }
     const { school_id } = parsed.data;
@@ -29,14 +31,10 @@ export function getSchoolProfileHandler(client: ScorecardClient) {
         });
         return;
       }
-      res.json(toProfile(first));
+      const profile = SchoolProfileSchema.parse(toProfile(first));
+      res.json(profile);
     } catch (err) {
-      res.status(502).json({
-        error: {
-          code: 'upstream_error',
-          message: err instanceof Error ? err.message : 'Unknown upstream error',
-        },
-      });
+      upstreamError(res, err);
     }
-  };
+  });
 }

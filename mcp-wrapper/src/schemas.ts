@@ -51,17 +51,29 @@ export const ComparisonRowSchema = z.object({
 });
 export type ComparisonRow = z.infer<typeof ComparisonRowSchema>;
 
+// `total_matching` is the upstream total (could be thousands).
+// `returned` is the actual length of `schools` (capped by `limit`).
+// Distinct fields prevent the agent from reporting "1247 schools" while
+// only seeing 10.
 export const SchoolListResultSchema = z.object({
   schools: z.array(SchoolSummarySchema),
-  total: z.number().int(),
+  total_matching: z.number().int().nonnegative(),
+  returned: z.number().int().nonnegative(),
   applied_filters: z.record(z.string(), z.unknown()),
   source: z.literal(SOURCE),
 });
 export type SchoolListResult = z.infer<typeof SchoolListResultSchema>;
 
+export const ComparisonFailureSchema = z.object({
+  school_id: z.number().int(),
+  reason: z.string(),
+});
+export type ComparisonFailure = z.infer<typeof ComparisonFailureSchema>;
+
 export const ComparisonResultSchema = z.object({
   schools: z.array(SchoolProfileSchema),
   rows: z.array(ComparisonRowSchema),
+  failures: z.array(ComparisonFailureSchema),
   source: z.literal(SOURCE),
 });
 export type ComparisonResult = z.infer<typeof ComparisonResultSchema>;
@@ -82,18 +94,46 @@ export const GetSchoolProfileInputSchema = z.object({
 export type GetSchoolProfileInput = z.infer<typeof GetSchoolProfileInputSchema>;
 
 export const CompareSchoolsInputSchema = z.object({
-  school_ids: z.array(z.number().int().positive()).min(2).max(4),
+  school_ids: z
+    .array(z.number().int().positive())
+    .min(2)
+    .max(4)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: 'school_ids must be unique',
+    }),
 });
 export type CompareSchoolsInput = z.infer<typeof CompareSchoolsInputSchema>;
 
-export const FindByCriteriaInputSchema = z.object({
-  state: StateCodeSchema.optional(),
-  max_net_price: z.number().int().nonnegative().optional(),
-  min_grad_rate: z.number().min(0).max(1).optional(),
-  size: SizeBucketSchema.optional(),
-  ownership: z.enum(['public', 'private_nonprofit', 'private_for_profit']).optional(),
-  limit: z.number().int().min(1).max(20).default(10),
-});
+export const FindByCriteriaInputSchema = z
+  .object({
+    state: StateCodeSchema.optional(),
+    max_net_price: z.number().int().nonnegative().optional(),
+    min_grad_rate: z.number().min(0).max(1).optional(),
+    size: SizeBucketSchema.optional(),
+    ownership: z
+      .enum(['public', 'private_nonprofit', 'private_for_profit'])
+      .optional(),
+    // Degree-type filter ensures "find me a college" queries surface recognized
+    // 4-year institutions instead of trade schools or adult-education programs.
+    // Maps to Scorecard's school.degrees_awarded.predominant (1..4).
+    degree_type: z
+      .enum(['certificate', 'associate', 'bachelor', 'graduate'])
+      .optional(),
+    limit: z.number().int().min(1).max(20).default(10),
+  })
+  .refine(
+    (d) =>
+      d.state !== undefined ||
+      d.max_net_price !== undefined ||
+      d.min_grad_rate !== undefined ||
+      d.size !== undefined ||
+      d.ownership !== undefined ||
+      d.degree_type !== undefined,
+    {
+      message:
+        'Provide at least one filter: state, max_net_price, min_grad_rate, size, ownership, or degree_type.',
+    }
+  );
 export type FindByCriteriaInput = z.infer<typeof FindByCriteriaInputSchema>;
 
 export const SOURCE_LITERAL = SOURCE;

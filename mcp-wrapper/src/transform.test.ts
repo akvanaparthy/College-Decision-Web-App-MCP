@@ -52,9 +52,9 @@ describe('toSummary', () => {
       'school.school_url': null,
       'school.ownership': null,
       'latest.student.size': null,
-      'latest.cost.attendance.academic_year': null,
+      'latest.cost.avg_net_price.overall': null,
       'latest.admissions.admission_rate.overall': null,
-      'latest.completion.completion_rate_4yr_150nt': null,
+      'latest.completion.rate_suppressed.overall': null,
     });
     expect(result.size).toBeNull();
     expect(result.net_price_year).toBeNull();
@@ -71,6 +71,24 @@ describe('toSummary', () => {
       'school.school_url': 'https://www.berkeley.edu/admissions',
     });
     expect(result.url).toBe('https://www.berkeley.edu/admissions');
+  });
+
+  it('rejects sentinel "NULL" / "none" / "n/a" url strings', () => {
+    expect(toSummary({ ...ucbRaw, 'school.school_url': 'NULL' }).url).toBeNull();
+    expect(toSummary({ ...ucbRaw, 'school.school_url': 'none' }).url).toBeNull();
+    expect(toSummary({ ...ucbRaw, 'school.school_url': 'N/A' }).url).toBeNull();
+  });
+
+  it('rejects URL-shaped strings with whitespace, @, or no dot', () => {
+    expect(toSummary({ ...ucbRaw, 'school.school_url': 'no spaces here.edu' }).url).toBeNull();
+    expect(toSummary({ ...ucbRaw, 'school.school_url': 'mailto:info@school.edu' }).url).toBeNull();
+    expect(toSummary({ ...ucbRaw, 'school.school_url': 'noDotAtAll' }).url).toBeNull();
+  });
+
+  it('throws on a row missing a valid integer id', () => {
+    expect(() => toSummary({ ...ucbRaw, id: undefined })).toThrow(/valid integer id/);
+    expect(() => toSummary({ ...ucbRaw, id: null })).toThrow(/valid integer id/);
+    expect(() => toSummary({ ...ucbRaw, id: 'not-a-number' })).toThrow(/valid integer id/);
   });
 });
 
