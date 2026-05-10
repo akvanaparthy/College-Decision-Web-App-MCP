@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base layer extensions ────────────────────────────────────────────── */
+@layer base {
+  html {
+    font-feature-settings: 'cv11', 'ss01', 'ss03', 'liga' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    font-family: theme('fontFamily.sans');
+    font-size: theme('fontSize.body[0]');
+    line-height: theme('fontSize.body[1].lineHeight');
+    background-color: theme('colors.parchment.DEFAULT');
+    color: theme('colors.ink.DEFAULT');
+  }
+  /* Subtle paper grain on the parchment background. CSS-only — no images. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.035;
+    background-image: radial-gradient(
+        circle at 25% 25%,
+        currentColor 0.5px,
+        transparent 0.5px
+      ),
+      radial-gradient(
+        circle at 75% 75%,
+        currentColor 0.5px,
+        transparent 0.5px
+      );
+    background-size: 24px 24px, 24px 24px;
+    background-position: 0 0, 12px 12px;
+  }
+  ::selection {
+    background-color: theme('colors.forest.tint');
+    color: theme('colors.forest.dark');
+  }
+}
+
+/* ─── Component primitives ─────────────────────────────────────────────── */
+@layer components {
+  .heading-display {
+    font-family: theme('fontFamily.display');
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+  }
+
+  .label-overline {
+    font-family: theme('fontFamily.mono');
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: theme('colors.ink.50');
+  }
+
+  .surface {
+    background-color: theme('colors.parchment.tint');
+    border: 1px solid theme('colors.ink.10');
+    border-radius: theme('borderRadius.md');
+    box-shadow: theme('boxShadow.card');
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid theme('colors.forest.DEFAULT');
+    outline-offset: 2px;
+  }
+}
+
+/* ─── Utilities ────────────────────────────────────────────────────────── */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: theme('colors.ink.30');
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+}
