@@ -29,10 +29,15 @@ export class McpClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
+      // Strip null fields before forwarding. Tool schemas use .nullable()
+      // (required for OpenAI strict mode), so the model passes null to mean
+      // "no preference" — but the wrapper's Zod schemas treat absence (not null)
+      // as the canonical "not provided." Stripping nulls reconciles the two.
+      const cleaned = stripNulls(body);
       const res = await fetch(`${this.baseUrl}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(cleaned),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -58,9 +63,9 @@ export class McpClient {
 
   searchSchools(input: {
     query: string;
-    state?: string;
-    size?: 'small' | 'medium' | 'large';
-    limit?: number;
+    state?: string | null;
+    size?: 'small' | 'medium' | 'large' | null;
+    limit?: number | null;
   }): Promise<SchoolListResult> {
     return this.post('/tools/search_schools', input);
   }
@@ -74,14 +79,36 @@ export class McpClient {
   }
 
   findSchoolsByCriteria(input: {
-    state?: string;
-    max_net_price?: number;
-    min_grad_rate?: number;
-    size?: 'small' | 'medium' | 'large';
-    ownership?: 'public' | 'private_nonprofit' | 'private_for_profit';
-    degree_type?: 'certificate' | 'associate' | 'bachelor' | 'graduate';
-    limit?: number;
+    state?: string | null;
+    max_net_price?: number | null;
+    min_grad_rate?: number | null;
+    size?: 'small' | 'medium' | 'large' | null;
+    ownership?: 'public' | 'private_nonprofit' | 'private_for_profit' | null;
+    degree_type?: 'certificate' | 'associate' | 'bachelor' | 'graduate' | null;
+    limit?: number | null;
   }): Promise<SchoolListResult> {
     return this.post('/tools/find_schools_by_criteria', input);
   }
+}
+
+/**
+ * Recursively remove `null`-valued keys from an object. Plain values, arrays,
+ * and nested objects are walked; non-null primitives pass through unchanged.
+ */
+function stripNulls(value: unknown): unknown {
+  if (value === null) return undefined;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripNulls(item))
+      .filter((item) => item !== undefined);
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const cleaned = stripNulls(v);
+      if (cleaned !== undefined) out[k] = cleaned;
+    }
+    return out;
+  }
+  return value;
 }

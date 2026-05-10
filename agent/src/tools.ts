@@ -11,6 +11,10 @@ import type { McpClient } from './mcp-client.js';
  *   2. Runtime validation of arguments before they hit the MCP wrapper
  */
 export function buildTools(mcp: McpClient) {
+  // Note: optional fields use `.nullable()` (not `.optional()`) so the
+  // generated JSON Schema satisfies OpenAI strict-mode "all fields required"
+  // — the model passes null when it doesn't want to constrain a filter.
+  // The mcp-client strips nulls before forwarding to the wrapper.
   const searchSchoolsTool = tool(
     async (input) => mcp.searchSchools(input),
     {
@@ -25,21 +29,21 @@ export function buildTools(mcp: McpClient) {
         state: z
           .string()
           .length(2)
-          .optional()
-          .describe('2-letter state code, e.g. CA'),
+          .nullable()
+          .describe('2-letter state code, e.g. CA — pass null if no preference'),
         size: z
           .enum(['small', 'medium', 'large'])
-          .optional()
+          .nullable()
           .describe(
-            'Student size bucket: small (<5k), medium (5k–15k), large (>15k)'
+            'Student size bucket: small (<5k), medium (5k–15k), large (>15k) — pass null if no preference'
           ),
         limit: z
           .number()
           .int()
           .min(1)
           .max(20)
-          .default(10)
-          .describe('Max number of results to return'),
+          .nullable()
+          .describe('Max number of results to return (1–20). Pass null to use the default of 10.'),
       }),
     }
   );
@@ -91,45 +95,45 @@ export function buildTools(mcp: McpClient) {
         state: z
           .string()
           .length(2)
-          .optional()
-          .describe('2-letter state code, e.g. CA'),
+          .nullable()
+          .describe('2-letter state code, e.g. CA — pass null if no preference'),
         max_net_price: z
           .number()
           .int()
           .nonnegative()
-          .optional()
+          .nullable()
           .describe(
-            'Maximum average net price (annual $ paid after aid). Use this for "under $X" queries.'
+            'Maximum average net price (annual $ paid after aid). Use for "under $X" queries; pass null if no cost cap.'
           ),
         min_grad_rate: z
           .number()
           .min(0)
           .max(1)
-          .optional()
+          .nullable()
           .describe(
-            'Minimum overall completion rate as a fraction (e.g. 0.8 = 80%)'
+            'Minimum overall completion rate as a fraction (e.g. 0.8 = 80%). Pass null if no cap.'
           ),
         size: z
           .enum(['small', 'medium', 'large'])
-          .optional()
-          .describe('small (<5k), medium (5k–15k), large (>15k) students'),
+          .nullable()
+          .describe('small (<5k), medium (5k–15k), large (>15k) students — pass null if no preference'),
         ownership: z
           .enum(['public', 'private_nonprofit', 'private_for_profit'])
-          .optional()
-          .describe('Filter by school ownership type'),
+          .nullable()
+          .describe('Filter by school ownership type — pass null if no preference'),
         degree_type: z
           .enum(['certificate', 'associate', 'bachelor', 'graduate'])
-          .optional()
+          .nullable()
           .describe(
-            'Predominant degree awarded. PASS "bachelor" for typical 4-year college queries.'
+            'Predominant degree awarded. PASS "bachelor" for typical 4-year college queries; null only if user asked for trade/grad school.'
           ),
         limit: z
           .number()
           .int()
           .min(1)
           .max(20)
-          .default(10)
-          .describe('Max number of results to return'),
+          .nullable()
+          .describe('Max number of results to return (1–20). Pass null to use the default of 10.'),
       }),
     }
   );
