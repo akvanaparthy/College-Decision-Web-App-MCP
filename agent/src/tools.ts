@@ -71,6 +71,9 @@ export function buildTools(mcp: McpClient) {
           .array(z.number().int().positive())
           .min(2)
           .max(4)
+          .refine((ids) => new Set(ids).size === ids.length, {
+            message: 'school_ids must be unique',
+          })
           .describe(
             '2–4 unique Scorecard school ids; resolve names via search_schools first'
           ),

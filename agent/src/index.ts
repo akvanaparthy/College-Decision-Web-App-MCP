@@ -23,6 +23,10 @@ const OPENROUTER_BASE_URL =
 const OPENROUTER_MODEL =
   process.env['OPENROUTER_MODEL'] ?? 'nvidia/nemotron-3-super-120b-a12b:free';
 const MCP_BASE_URL = process.env['MCP_BASE_URL'] ?? 'http://localhost:4000';
+// Single-origin CORS lock — only the known frontend origin can call us.
+// Override via env (e.g. for staging). Use '*' only in dev pinches.
+const AGENT_CORS_ORIGIN =
+  process.env['AGENT_CORS_ORIGIN'] ?? 'http://localhost:5173';
 
 if (!OPENROUTER_API_KEY) {
   console.error(
@@ -69,8 +73,9 @@ const ChatRequestSchema = z.object({
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '64kb' }));
+app.use(cors({ origin: AGENT_CORS_ORIGIN }));
+// Bumped to 512kb so the schema's 40 messages × 8000 chars upper bound fits.
+app.use(express.json({ limit: '512kb' }));
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
@@ -105,7 +110,12 @@ app.use((_req: Request, res: Response) => {
 });
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-  console.error('Unhandled error:', err instanceof Error ? err.message : err);
+  // Only log error.name + status (if any) — never err.message, since some
+  // SDK errors embed the request URL (which contains the api_key).
+  const name = err instanceof Error ? err.name : 'unknown';
+  const status =
+    err && typeof err === 'object' && 'status' in err ? (err as { status: unknown }).status : 'n/a';
+  console.error(`Unhandled error: name=${name} status=${String(status)}`);
   res
     .status(500)
     .json({ error: { code: 'internal_error', message: 'Something went wrong' } });
